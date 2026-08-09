@@ -1,0 +1,308 @@
+﻿<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VinetMonitor - Home</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: "class" };
+  </script>
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem("rd-theme");
+        var dark = saved
+          ? saved === "dark"
+          : window.matchMedia("(prefers-color-scheme: dark)").matches;
+        if (dark) document.documentElement.classList.add("dark");
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    body { font-family: "Segoe UI", system-ui, sans-serif; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 5px; }
+    ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+    .dark ::-webkit-scrollbar-thumb { background: #27272a; }
+    .dark ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+  <div class="max-w-7xl mx-auto px-4 py-6">
+    <header class="flex items-center justify-between gap-4 flex-wrap mb-8">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+          <img src="/static/icon-server.png" alt="VinetMonitor" class="w-10 h-10 rounded-xl object-cover shrink-0">
+          Vinet Monitor
+        </h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <span class="font-mono" data-si="hostname">-</span> &middot; <span data-si="os">-</span> &middot; IP <span class="font-mono" data-si="ip">-</span>:<span class="font-mono" data-si="port">-</span>
+        </p>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <button id="themeToggle" title="Ganti tampilan terang/gelap"
+                class="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border transition bg-white border-gray-300 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700">
+          <svg id="iconSun" class="w-4 h-4 hidden dark:inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+          </svg>
+          <svg id="iconMoon" class="w-4 h-4 inline dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+          </svg>
+        </button>
+        <span id="conn" class="text-sm rounded-lg px-3 py-2 border text-gray-600 bg-white border-gray-300 dark:text-gray-300 dark:bg-gray-800 dark:border-gray-700">
+          Menghubungkan...
+        </span>
+      </div>
+    </header>
+
+    <div id="empty" class="hidden flex-col items-center justify-center text-center py-24 px-4">
+      <div class="w-20 h-20 rounded-2xl bg-gray-200 border border-gray-300 flex items-center justify-center mb-6 dark:bg-gray-900 dark:border-gray-700">
+        <svg class="w-10 h-10 text-gray-400 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
+        </svg>
+      </div>
+      <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Belum ada client terhubung</h2>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-md">
+        Jalankan <code class="text-blue-600 bg-gray-200 px-1.5 py-0.5 rounded dark:text-blue-400 dark:bg-gray-900">Vinet Monitor client</code>
+        pada mesin client untuk mulai menampilkan preview di sini.
+      </p>
+    </div>
+
+    <div id="clientGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"></div>
+  </div>
+
+  <script>
+    const token = new URLSearchParams(location.search).get("token") || __RD_TOKEN__;
+    const serverInfo = __SERVER_INFO_JSON__;
+    const wsUrl = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/viewer?token=${encodeURIComponent(token)}`;
+
+    let ws = null;
+    let drawing = false;
+    const cards = new Map();
+    const latest = new Map();
+    const lastDrawAt = new Map();
+    const PREVIEW_MIN_INTERVAL = 250;
+
+    const $ = (id) => document.getElementById(id);
+
+    function renderServerInfo() {
+      for (const [key, val] of Object.entries(serverInfo || {})) {
+        const el = document.querySelector(`[data-si="${key}"]`);
+        if (el) el.textContent = (val == null || val === "") ? "?" : String(val);
+      }
+    }
+    renderServerInfo();
+
+    function send(obj) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(obj));
+      }
+    }
+
+    function setConn(state, text) {
+      const el = $("conn");
+      el.textContent = text;
+      el.className = "text-sm rounded-lg px-3 py-2 border " + (
+        state === "ok"
+          ? "text-emerald-700 bg-emerald-50 border-emerald-300 dark:text-emerald-300 dark:bg-emerald-500/10 dark:border-emerald-500/30"
+          : state === "err"
+            ? "text-red-700 bg-red-50 border-red-300 dark:text-red-300 dark:bg-red-500/10 dark:border-red-500/30"
+            : "text-gray-600 bg-white border-gray-300 dark:text-gray-300 dark:bg-gray-800 dark:border-gray-700"
+      );
+    }
+
+    function connect() {
+      ws = new WebSocket(wsUrl);
+      ws.binaryType = "arraybuffer";
+
+      ws.onopen = () => {
+        setConn("ok", "Terhubung");
+        send({ action: "select", client: "*" });
+      };
+
+      ws.onclose = (ev) => {
+        if (ev.code === 4001) {
+          setConn("err", "Token salah");
+          return;
+        }
+        setConn("err", "Terputus, mencoba ulang...");
+        setTimeout(connect, 2000);
+      };
+
+      ws.onerror = () => setConn("err", "WebSocket error");
+
+      ws.onmessage = (ev) => {
+        if (typeof ev.data === "string") {
+          try {
+            handleJson(JSON.parse(ev.data));
+          } catch (e) {}
+        } else {
+          handleBinary(ev.data);
+        }
+      };
+    }
+
+    function handleJson(msg) {
+      if (msg.type === "client_list") {
+        renderClients(msg.clients || []);
+      }
+    }
+
+    function handleBinary(buffer) {
+      const bytes = new Uint8Array(buffer);
+      if (bytes.length < 2) return;
+
+      const idLen = bytes[0];
+      if (bytes.length < 1 + idLen) return;
+
+      const id = new TextDecoder().decode(bytes.slice(1, 1 + idLen));
+      const now = performance.now();
+      if (now - (lastDrawAt.get(id) || 0) < PREVIEW_MIN_INTERVAL) return;
+
+      lastDrawAt.set(id, now);
+      latest.set(id, bytes.slice(1 + idLen));
+      requestFrame();
+    }
+
+    function requestFrame() {
+      if (drawing) return;
+      drawing = true;
+      requestAnimationFrame(drawLoop);
+    }
+
+    async function drawLoop() {
+      const entries = [...latest.entries()];
+      latest.clear();
+
+      for (const [id, data] of entries) {
+        const card = cards.get(id);
+        if (!card || !data) continue;
+
+        try {
+          const blob = new Blob([data], { type: "image/jpeg" });
+          const bmp = await createImageBitmap(blob);
+          const cv = card.canvas;
+          if (cv.width !== bmp.width) cv.width = bmp.width;
+          if (cv.height !== bmp.height) cv.height = bmp.height;
+          cv.getContext("2d").drawImage(bmp, 0, 0);
+          bmp.close();
+        } catch (e) {}
+      }
+
+      if (latest.size) {
+        requestAnimationFrame(drawLoop);
+      } else {
+        drawing = false;
+      }
+    }
+
+    function buildCard(c) {
+      const root = document.createElement("article");
+      root.className = "group relative bg-white border border-gray-200 rounded-2xl overflow-hidden " +
+        "transition hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/10 " +
+        "dark:bg-gray-900 dark:border-gray-700 dark:hover:shadow-blue-900/30";
+      root.innerHTML = `
+        <a href="/view/${encodeURIComponent(c.id)}?token=${encodeURIComponent(token)}" target="_blank" rel="noopener noreferrer" class="block focus:outline-none">
+          <div class="relative aspect-video bg-black overflow-hidden">
+            <canvas class="w-full h-full object-contain transition duration-200 group-hover:scale-[1.01]"></canvas>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none"></div>
+            <span class="absolute top-2 left-2 flex items-center gap-1.5 text-[11px] font-medium text-emerald-300 bg-black/60 backdrop-blur px-2 py-1 rounded-full border border-emerald-500/30">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Online
+            </span>
+          </div>
+          <div class="p-4">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-base font-semibold text-gray-900 truncate dark:text-white" data-title></h3>
+              <span class="text-[11px] text-gray-500 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5 truncate max-w-[40%] dark:bg-gray-800 dark:border-gray-700" data-cid></span>
+            </div>
+            <dl class="mt-3 space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
+              <div class="flex justify-between gap-2"><dt class="text-gray-400 shrink-0 dark:text-gray-500">IP</dt><dd class="truncate font-mono text-right" data-ip></dd></div>
+              <div class="flex justify-between gap-2"><dt class="text-gray-400 shrink-0 dark:text-gray-500">User</dt><dd class="truncate text-right" data-user></dd></div>
+              <div class="flex justify-between gap-2"><dt class="text-gray-400 shrink-0 dark:text-gray-500">OS</dt><dd class="truncate text-right" data-os></dd></div>
+              <div class="flex justify-between gap-2"><dt class="text-gray-400 shrink-0 dark:text-gray-500">Layar</dt><dd class="truncate text-right" data-screen></dd></div>
+            </dl>
+            <span class="mt-4 flex items-center justify-center gap-1.5 text-sm font-medium text-blue-600 group-hover:text-blue-500 bg-blue-50 group-hover:bg-blue-100 border border-blue-200 rounded-lg py-2 transition dark:text-blue-400 dark:group-hover:text-blue-300 dark:bg-blue-500/10 dark:group-hover:bg-blue-500/20 dark:border-blue-500/20">
+              Lihat Detail
+              <svg class="w-4 h-4 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </span>
+          </div>
+        </a>`;
+      root.canvas = root.querySelector("canvas");
+      return root;
+    }
+
+    function updateCard(card, c) {
+      const info = c.info || {};
+      const root = card.root;
+      root.querySelector("[data-title]").textContent = info.hostname || c.id;
+      root.querySelector("[data-cid]").textContent = c.id;
+      root.querySelector("[data-ip]").textContent = info.ip || "?";
+      root.querySelector("[data-user]").textContent = info.user || "?";
+      root.querySelector("[data-os]").textContent = info.os || "?";
+      root.querySelector("[data-screen]").textContent = info.screen || "?";
+    }
+
+    function renderClients(list) {
+      const ids = new Set(list.map((c) => c.id));
+
+      for (const [id, card] of cards) {
+        if (!ids.has(id)) {
+          card.root.remove();
+          cards.delete(id);
+          latest.delete(id);
+          lastDrawAt.delete(id);
+        }
+      }
+
+      for (const c of list) {
+        let card = cards.get(c.id);
+        if (!card) {
+          card = { root: buildCard(c), canvas: null };
+          card.canvas = card.root.querySelector("canvas");
+          $("clientGrid").appendChild(card.root);
+          cards.set(c.id, card);
+        }
+        updateCard(card, c);
+      }
+
+      $("empty").classList.toggle("hidden", list.length > 0);
+      $("empty").classList.toggle("flex", list.length === 0);
+      $("clientGrid").classList.toggle("hidden", list.length === 0);
+    }
+
+    function setupTheme() {
+      const el = $("themeToggle");
+      if (el) {
+        el.addEventListener("click", () => {
+          const dark = document.documentElement.classList.toggle("dark");
+          try {
+            localStorage.setItem("rd-theme", dark ? "dark" : "light");
+          } catch (e) {}
+        });
+      }
+    }
+    setupTheme();
+
+    connect();
+
+    window.addEventListener("pageshow", (e) => {
+      if (e.persisted) {
+        drawing = false;
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          connect();
+        } else {
+          requestFrame();
+        }
+      }
+    });
+  </script>
+</body>
+</html>
+
+
+
+
