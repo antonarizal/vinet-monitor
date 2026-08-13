@@ -9,6 +9,7 @@ import secrets
 import socket
 import sys
 import time
+from contextlib import asynccontextmanager
 from typing import Dict, Optional, Set
 from urllib.parse import quote
 
@@ -64,8 +65,6 @@ def load_shared_token():
 
 TOKEN = load_shared_token()
 
-app = FastAPI(title="VinetMonitor")
-
 clients: Dict[str, WebSocket] = {}
 client_info: Dict[str, dict] = {}
 viewers: Set[WebSocket] = set()
@@ -74,10 +73,56 @@ viewer_sub: Dict[WebSocket, Optional[str]] = {}
 thumb_last: Dict[str, float] = {}
 thumb_cache: Dict[str, bytes] = {}
 
+last_activity: Dict[str, float] = {}
+
 THUMB_FPS = float(os.getenv("RD_THUMB_FPS", "2"))
 THUMB_INTERVAL = 1.0 / max(1.0, THUMB_FPS)
 THUMB_MAX_SIZE = int(os.getenv("RD_THUMB_MAX", "320"))
 THUMB_QUALITY = int(os.getenv("RD_THUMB_QUALITY", "30"))
+
+CLIENT_TIMEOUT = float(os.getenv("RD_CLIENT_TIMEOUT", "60"))
+CLIENT_SWEEP_SECONDS = 5.0
+
+
+async def client_sweeper():
+    while True:
+        await asyncio.sleep(CLIENT_SWEEP_SECONDS)
+
+        now = time.monotonic()
+        stale = [
+            cid
+            for cid in list(clients)
+            if now - last_activity.get(cid, now) > CLIENT_TIMEOUT
+        ]
+
+        for cid in stale:
+            ws = clients.get(cid)
+            if ws is None:
+                continue
+            clients.pop(cid, None)
+            client_info.pop(cid, None)
+            thumb_last.pop(cid, None)
+            thumb_cache.pop(cid, None)
+            last_activity.pop(cid, None)
+            await broadcast_client_list()
+            try:
+                await asyncio.wait_for(ws.close(code=1006), timeout=2)
+            except Exception:
+                pass
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    task = asyncio.create_task(client_sweeper())
+    yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+
+app = FastAPI(title="VinetMonitor", lifespan=lifespan)
 
 
 STATIC_DIR = resource_dir() / "static"
@@ -256,6 +301,7 @@ async def ws_client(
     try:
         while True:
             msg = await websocket.receive()
+            last_activity[client_id] = time.monotonic()
 
             if msg.get("type") == "websocket.disconnect":
                 break
@@ -289,6 +335,7 @@ async def ws_client(
             client_info.pop(client_id, None)
             thumb_last.pop(client_id, None)
             thumb_cache.pop(client_id, None)
+            last_activity.pop(client_id, None)
             await broadcast_client_list()
 
 
@@ -441,7 +488,14 @@ if __name__ == "__main__":
 
     if lan_ip:
         print(f"VinetMonitor server berjalan di http://{lan_ip}:{port}")
-    uvicorn.run(app, host="0.0.0.0", port=port, log_config=log_config)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        log_config=log_config,
+        ws_ping_interval=20,
+        ws_ping_timeout=20,
+    )
 
 
 

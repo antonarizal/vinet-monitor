@@ -35,7 +35,7 @@ A bare host/`host:port` is auto-normalized: `ws://` is added if missing, and `/w
 
 - Shared: `RD_TOKEN`
 - Client: `RD_SERVER`, `RD_CLIENT_ID`, `RD_FPS` (10), `RD_SCALE` (0.5), `RD_QUALITY` (40)
-- Server: `RD_THUMB_FPS` (2), `RD_THUMB_MAX` (320), `RD_THUMB_QUALITY` (30)
+- Server: `RD_THUMB_FPS` (2), `RD_THUMB_MAX` (320), `RD_THUMB_QUALITY` (30), `RD_CLIENT_TIMEOUT` (60; detik tanpa aktivitas sebelum client dianggap mati — di-sweep tiap 5 detik oleh task background via lifespan)
 
 ## Quick check after changes
 
